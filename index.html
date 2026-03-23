@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>過橋拼字遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes shake {
+            0%, 100% { transform: translateX(0) rotate(0); }
+            25% { transform: translateX(-5px) rotate(-2deg); }
+            75% { transform: translateX(5px) rotate(2deg); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+        .boy-transition {
+            transition: left 2s ease-in-out, opacity 0.5s ease-in-out;
+        }
+        /* 新增：慶祝畫面的跳躍與煙火動畫 */
+        @keyframes jump {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-40px); }
+        }
+        .animate-jump {
+            animation: jump 0.8s ease-in-out infinite;
+        }
+        .animate-jump-delay {
+            animation: jump 0.8s ease-in-out infinite;
+            animation-delay: 0.2s;
+        }
+        @keyframes firework-pop {
+            0% { transform: scale(0) translateY(30px); opacity: 0; }
+            50% { transform: scale(1.5) translateY(0); opacity: 1; }
+            100% { transform: scale(1.2) translateY(-20px); opacity: 0; }
+        }
+        .animate-firework {
+            animation: firework-pop 2s infinite ease-out;
+        }
+    </style>
+</head>
+<body class="bg-sky-200 overflow-hidden font-sans select-none m-0 p-0 h-screen flex flex-col">
+
+    <!-- 遊戲結束畫面 (已更新：煙火慶祝與跳躍動畫) -->
+    <div id="game-over-screen" class="hidden absolute inset-0 bg-slate-900/90 z-50 flex flex-col items-center justify-center p-4 overflow-hidden backdrop-blur-sm">
+        
+        <!-- 背景煙火動畫 -->
+        <div class="absolute inset-0 pointer-events-none">
+            <div class="animate-firework absolute top-20 left-1/4 text-6xl" style="animation-delay: 0s;">🎆</div>
+            <div class="animate-firework absolute top-10 right-1/4 text-7xl" style="animation-delay: 0.5s;">🎇</div>
+            <div class="animate-firework absolute top-40 left-10 text-5xl" style="animation-delay: 1.2s;">✨</div>
+            <div class="animate-firework absolute top-32 right-10 text-6xl" style="animation-delay: 1.8s;">🎆</div>
+            <div class="animate-firework absolute top-1/3 left-1/2 text-8xl" style="animation-delay: 0.8s;">🎇</div>
+            <div class="animate-firework absolute top-1/4 left-2/3 text-6xl" style="animation-delay: 1.5s;">🌟</div>
+        </div>
+
+        <!-- 慶祝看板 -->
+        <div class="bg-white/95 p-8 md:p-12 rounded-3xl shadow-[0_0_50px_rgba(250,204,21,0.5)] text-center max-w-xl w-full border-4 border-yellow-400 relative z-10">
+            <h1 class="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 mb-2 animate-pulse">
+                Good Job!
+            </h1>
+            <h2 class="text-2xl font-bold text-gray-700 mb-8">恭喜完成所有關卡！</h2>
+            
+            <!-- 跳躍的小男孩與老師 -->
+            <div class="flex justify-center items-end gap-6 mb-8 h-32 border-b-4 border-green-500 pb-2 relative w-48 mx-auto">
+                <div class="text-7xl animate-jump">👦🏻</div>
+                <div class="text-7xl animate-jump-delay">👩🏻‍🏫</div>
+                <div class="absolute -bottom-4 left-0 w-full h-4 bg-green-600 rounded-full blur-sm opacity-50 -z-10"></div>
+            </div>
+
+            <p class="text-xl text-gray-700 mb-8">太棒了！小男孩成功學會所有單字，和老師一起開心慶祝啦！</p>
+            
+            <button onclick="restartGame()" class="px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full font-bold text-2xl hover:scale-105 active:scale-95 transition-all shadow-lg border-2 border-white/50">
+                再玩一次 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- 書寫練習畫面 (預設隱藏) -->
+    <div id="writing-screen" class="hidden absolute inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+        <div id="writing-modal-box" class="bg-white p-8 rounded-2xl shadow-xl text-center max-w-lg w-full">
+            <div class="text-5xl mb-4">✍️</div>
+            <h2 class="text-2xl font-bold text-amber-600 mb-2">需要多練習一下喔！</h2>
+            <p class="text-gray-700 mb-4">因為剛才有看提示，請在下方畫布<strong class="text-amber-600">手寫</strong>出這個詞語 <span id="writing-target-times" class="font-bold text-red-500">3</span> 次來加深記憶：</p>
+            <div class="text-4xl font-bold text-blue-600 mb-6 tracking-widest" id="writing-target-word"></div>
+            
+            <!-- 手寫畫布區域 (像便利貼/筆記本) -->
+            <div class="w-full flex justify-center mb-4 bg-yellow-50 border-4 border-yellow-200 rounded-xl relative overflow-hidden shadow-inner">
+                <canvas id="writing-canvas" width="400" height="150" class="cursor-crosshair touch-none w-full h-auto"></canvas>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="clearCanvas()" class="w-1/3 py-3 bg-gray-400 text-white rounded-xl font-bold text-xl hover:bg-gray-500 transition-colors shadow-md active:translate-y-1">
+                    清除重寫
+                </button>
+                <button onclick="checkWriting()" class="w-2/3 py-3 bg-amber-500 text-white rounded-xl font-bold text-xl hover:bg-amber-600 transition-colors shadow-md active:translate-y-1">
+                    寫好了！
+                </button>
+            </div>
+            <div id="writing-error-msg" class="text-red-500 font-bold mt-3 h-6"></div>
+        </div>
+    </div>
+
+    <!-- 頂部資訊列 -->
+    <div class="absolute top-4 left-0 w-full flex justify-between px-8 z-20">
+        <div id="progress-text" class="bg-white/80 backdrop-blur px-4 py-2 rounded-full font-bold text-gray-700 shadow-sm border border-white">
+            進度: 1 / 8
+        </div>
+    </div>
+
+    <!-- 遊戲主要畫面 -->
+    <div class="flex-grow flex flex-col justify-end relative pb-10">
+        
+        <!-- 背景裝飾 (雲朵) -->
+        <div class="absolute top-10 left-10 text-6xl opacity-50">☁️</div>
+        <div class="absolute top-20 right-32 text-7xl opacity-50">☁️</div>
+        <div class="absolute top-5 left-1/3 text-5xl opacity-50">☁️</div>
+
+        <!-- 提示訊息彈窗 -->
+        <div id="toast-message" class="hidden absolute top-1/4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-2xl shadow-xl font-bold text-lg text-center text-white">
+        </div>
+
+        <!-- 角色與地形區域 -->
+        <div class="relative w-full h-64 flex items-end justify-between px-4 z-10">
+            
+            <!-- 左岸 (起點) -->
+            <div class="w-1/4 h-24 bg-green-500 rounded-tr-3xl relative border-t-8 border-green-400">
+                <!-- 男孩 -->
+                <div id="boy" class="boy-transition absolute bottom-24 text-7xl z-20" style="left: 20%;">
+                    👦🏻
+                </div>
+                <!-- 草叢裝飾 -->
+                <div class="absolute bottom-20 left-2 text-2xl">🌿</div>
+                <div class="absolute bottom-16 right-4 text-2xl">🍄</div>
+            </div>
+
+            <!-- 河流 (中間) -->
+            <div class="w-2/4 h-16 bg-blue-400 relative overflow-hidden rounded-t-xl border-t-8 border-blue-300">
+                <!-- 水波紋裝飾 -->
+                <div class="absolute top-4 left-10 w-8 h-1 bg-white/30 rounded-full"></div>
+                <div class="absolute top-8 right-20 w-12 h-1 bg-white/30 rounded-full"></div>
+                <div class="absolute top-2 left-1/2 w-6 h-1 bg-white/30 rounded-full"></div>
+            </div>
+
+            <!-- 右岸 (終點 & 老師) -->
+            <div class="w-1/4 h-24 bg-green-500 rounded-tl-3xl relative border-t-8 border-green-400 flex justify-center">
+                
+                <!-- 老師對話框 -->
+                <div class="absolute bottom-40 -left-16 bg-white border-4 border-amber-300 rounded-2xl p-3 shadow-lg flex flex-col items-center min-w-[150px] z-30">
+                    <span id="teacher-emoji" class="text-3xl mb-1">🎉</span>
+                    <div class="flex items-center justify-center gap-2">
+                        <span id="teacher-text" class="font-bold text-gray-800 text-xl">慶祝</span>
+                        <button onclick="playWordAudio()" class="w-8 h-8 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 active:scale-95 transition-all shadow-sm text-base" title="聽發音">
+                            🔊
+                        </button>
+                    </div>
+                    <div class="absolute -bottom-4 right-10 w-0 h-0 border-l-[10px] border-l-transparent border-t-[15px] border-t-white border-r-[10px] border-r-transparent"></div>
+                    <div class="absolute -bottom-5 right-[38px] w-0 h-0 border-l-[12px] border-l-transparent border-t-[18px] border-t-amber-300 border-r-[12px] border-r-transparent -z-10"></div>
+                </div>
+
+                <!-- 老師 -->
+                <div class="absolute bottom-24 text-7xl z-20">👩🏻‍🏫</div>
+                <div class="absolute bottom-16 left-4 text-2xl">🌻</div>
+            </div>
+        </div>
+
+        <!-- 橋樑插槽區 -->
+        <div class="absolute bottom-28 w-full flex justify-center z-20 pointer-events-none">
+            <div id="bridge-container" class="flex flex-wrap justify-center gap-x-6 gap-y-4 sm:gap-x-8 px-2 max-w-3xl pointer-events-auto">
+                <!-- 插槽會由 JS 動態生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部字母池操作區 -->
+    <div class="bg-amber-100 min-h-[150px] p-6 shadow-inner border-t-4 border-amber-200 flex flex-col items-center z-30 relative">
+        <h3 class="text-amber-800 font-bold mb-4 flex items-center gap-2">
+            <span>👇 請點擊下方字母，依序填入橋樑空缺處 👇</span>
+        </h3>
+        <div id="pool-container" class="flex flex-wrap justify-center gap-3 max-w-4xl min-h-[64px]">
+            <!-- 字母按鈕會由 JS 動態生成 -->
+        </div>
+        <div id="empty-pool-msg" class="hidden text-gray-400 italic absolute top-16 mt-2">字母已全數放上橋樑...</div>
+    </div>
+
+    <script>
+        // 詞彙表 (將 const 改為 let，讓系統可以在每次開局時重新洗牌)
+        let wordList = [
+            { eng: "celebrate", chi: "慶祝", img: "🎉" },
+            { eng: "decorate", chi: "裝飾", img: "🎀" },
+            { eng: "family gathering", chi: "家庭聚會", img: "👨‍👩‍👧‍👦" },
+            { eng: "watch the fireworks", chi: "看煙火", img: "🎆" },
+            { eng: "red packets", chi: "紅包", img: "🧧" },
+            { eng: "good luck", chi: "好運", img: "🍀" },
+            { eng: "excited", chi: "興奮的", img: "🤩" },
+            { eng: "joyful", chi: "喜悅的", img: "😊" }
+        ];
+
+        // 狀態變數
+        let currentLevel = 0;
+        let slots = [];
+        let poolLetters = [];
+        let isAnimating = false; // 移除了懲罰次數的變數
+        let consecutiveMistakes = 0; // 新增：記錄連續錯誤次數
+        let usedWatermark = false; // 新增：記錄是否依賴過浮水印
+        let writingTimesLeft = 3; // 新增：書寫練習剩餘次數
+
+        // 畫布相關變數
+        let canvas, ctx;
+        let isDrawing = false;
+        let hasDrawn = false;
+
+        // 陣列洗牌函數
+        function shuffleArray(array) {
+            const newArr = [...array];
+            for (let i = newArr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+            }
+            return newArr;
+        }
+
+        // 新增：播放單字發音 (使用瀏覽器內建語音 API)
+        function playWordAudio() {
+            const word = wordList[currentLevel].eng;
+            if ('speechSynthesis' in window) {
+                // 取消當前可能正在播放的語音
+                window.speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(word);
+                utterance.lang = 'en-US'; // 設定為美式英文
+                utterance.rate = 0.85;    // 稍微放慢語速，讓學生聽得更清楚
+                utterance.pitch = 1.1;    // 稍微提高音調，聽起來比較親切
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // 初始化關卡
+        function initLevel(levelIndex) {
+            if (levelIndex >= wordList.length) {
+                document.getElementById('game-over-screen').classList.remove('hidden');
+                return;
+            }
+
+            currentLevel = levelIndex;
+            isAnimating = false;
+            consecutiveMistakes = 0; // 關卡開始時重置錯誤次數
+            usedWatermark = false; // 關卡開始時重置浮水印使用記錄
+
+            const wordInfo = wordList[currentLevel];
+            const letters = wordInfo.eng.split('');
+
+            // 更新 UI 資訊
+            document.getElementById('progress-text').innerText = `進度: ${currentLevel + 1} / ${wordList.length}`;
+            document.getElementById('teacher-emoji').innerText = wordInfo.img;
+            document.getElementById('teacher-text').innerText = wordInfo.chi;
+            
+            // 男孩歸位
+            const boy = document.getElementById('boy');
+            boy.style.left = '20%';
+            boy.style.opacity = '1';
+
+            // 建立橋樑插槽 (加入 targetChar 作為浮水印底字提示)
+            slots = letters.map(char => 
+                char === ' ' 
+                ? { isSpace: true, char: ' ' } 
+                : { isSpace: false, char: null, targetChar: char }
+            );
+            
+            // 建立可選字母池
+            const availableChars = letters
+                .filter(c => c !== ' ')
+                .map((char, index) => ({ id: `pool-${index}`, char: char }));
+            poolLetters = shuffleArray(availableChars);
+
+            renderBridge();
+            renderPool();
+            
+            // 延遲一點點播放發音，讓視覺先準備好
+            setTimeout(() => {
+                playWordAudio();
+            }, 600);
+        }
+
+        // 渲染橋樑
+        function renderBridge() {
+            const container = document.getElementById('bridge-container');
+            container.innerHTML = '';
+
+            let wordDiv = document.createElement('div');
+            wordDiv.className = 'flex gap-1 sm:gap-2';
+
+            // 找出下一個需要填寫的空缺索引
+            const firstEmptyIndex = slots.findIndex(slot => !slot.isSpace && slot.char === null);
+
+            slots.forEach((slot, index) => {
+                if (slot.isSpace) {
+                    // 將完整的一個單字區塊加入容器
+                    if (wordDiv.children.length > 0) {
+                        container.appendChild(wordDiv);
+                    }
+                    // 準備下一個單字的區塊
+                    wordDiv = document.createElement('div');
+                    wordDiv.className = 'flex gap-1 sm:gap-2';
+                    return;
+                }
+
+                const slotDiv = document.createElement('div');
+                
+                if (slot.char) {
+                    // 已放置正確字母的插槽
+                    slotDiv.className = 'w-8 h-10 sm:w-12 sm:h-14 md:w-14 md:h-16 flex items-center justify-center text-2xl sm:text-3xl font-bold rounded-md cursor-pointer transition-all bg-amber-700 text-amber-50 shadow-md border-b-4 border-amber-900 hover:bg-amber-600 hover:-translate-y-1';
+                    slotDiv.innerText = slot.char;
+                    slotDiv.onclick = () => handleSlotClick(index);
+                } else {
+                    // 空插槽：預設不顯示，只有在連續錯2次且是當前要填的格子時，才顯示提示
+                    slotDiv.className = 'w-8 h-10 sm:w-12 sm:h-14 md:w-14 md:h-16 flex items-center justify-center text-2xl sm:text-3xl font-bold rounded-md transition-all bg-white/50 border-2 border-dashed border-amber-900/40 text-amber-900/30';
+                    if (index === firstEmptyIndex && consecutiveMistakes >= 2) {
+                        slotDiv.innerText = slot.targetChar;
+                    } else {
+                        slotDiv.innerText = '';
+                    }
+                }
+                
+                wordDiv.appendChild(slotDiv);
+            });
+
+            // 加入最後一個單字區塊
+            if (wordDiv.children.length > 0) {
+                container.appendChild(wordDiv);
+            }
+        }
+
+        // 渲染字母池
+        function renderPool() {
+            const container = document.getElementById('pool-container');
+            const emptyMsg = document.getElementById('empty-pool-msg');
+            container.innerHTML = '';
+
+            poolLetters.forEach(letter => {
+                const btn = document.createElement('button');
+                btn.id = `btn-${letter.id}`; // 綁定 ID 以便播放錯誤搖晃動畫
+                btn.className = 'w-12 h-14 sm:w-14 sm:h-16 bg-white rounded-lg shadow-md border-b-4 border-gray-300 text-3xl font-bold text-gray-800 hover:bg-gray-50 hover:-translate-y-1 hover:border-b-6 transition-all active:translate-y-1 active:border-b-0';
+                btn.innerText = letter.char;
+                btn.onclick = () => handlePoolClick(letter);
+                container.appendChild(btn);
+            });
+
+            if (poolLetters.length === 0) {
+                emptyMsg.classList.remove('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+            }
+        }
+
+        // 處理點擊字母池 (防呆機制：只允許正確字母放上去)
+        function handlePoolClick(letterObj) {
+            if (isAnimating) return;
+
+            // 尋找第一個還沒填上的空缺
+            const firstEmptyIndex = slots.findIndex(slot => !slot.isSpace && slot.char === null);
+            if (firstEmptyIndex !== -1) {
+                const expectedChar = slots[firstEmptyIndex].targetChar;
+                
+                if (letterObj.char === expectedChar) {
+                    // 答對了！放上橋樑
+                    consecutiveMistakes = 0; // 重置錯誤次數
+                    slots[firstEmptyIndex].char = letterObj.char;
+                    slots[firstEmptyIndex].originId = letterObj.id; // 記錄來源 ID 以便退回
+                    poolLetters = poolLetters.filter(l => l.id !== letterObj.id);
+                    
+                    renderBridge();
+                    renderPool();
+                    checkCompletion();
+                } else {
+                    // 答錯了！按鈕搖晃且閃爍紅色，不會真的放上去
+                    consecutiveMistakes++; // 增加連續錯誤次數
+                    if (consecutiveMistakes >= 2) {
+                        usedWatermark = true; // 標記已使用過浮水印提示
+                    }
+                    const btn = document.getElementById(`btn-${letterObj.id}`);
+                    btn.classList.add('animate-shake', 'bg-red-100', 'border-red-400', 'text-red-600');
+                    setTimeout(() => {
+                        btn.classList.remove('animate-shake', 'bg-red-100', 'border-red-400', 'text-red-600');
+                    }, 400);
+                    
+                    renderBridge(); // 重新渲染橋樑以顯示提示（如果達到兩次）
+                }
+            }
+        }
+
+        // 處理點擊橋上字母 (退回字母池)
+        function handleSlotClick(index) {
+            if (isAnimating) return;
+            
+            const slotObj = slots[index];
+            if (!slotObj || slotObj.isSpace || !slotObj.char) return;
+
+            // 放回字母池
+            consecutiveMistakes = 0; // 拿掉字母時也重置錯誤次數，避免直接顯示上一格提示
+            poolLetters.push({ id: slotObj.originId, char: slotObj.char });
+            slotObj.char = null;
+            delete slotObj.originId;
+            
+            renderBridge();
+            renderPool();
+        }
+
+        // 顯示提示訊息
+        function showToast(text, type) {
+            const toast = document.getElementById('toast-message');
+            toast.innerText = text;
+            toast.className = `absolute top-1/4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-2xl shadow-xl font-bold text-lg text-center text-white ${type === 'error' ? 'bg-red-500' : 'bg-green-500'}`;
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2000);
+        }
+
+        // 檢查是否拼寫完成 (移除懲罰邏輯)
+        function checkCompletion() {
+            // 檢查是否所有非空格的插槽都已經有字母了
+            if (slots.length > 0 && slots.every(slot => slot.isSpace || slot.char !== null)) {
+                isAnimating = true; // 鎖定操作
+
+                setTimeout(() => {
+                    if (usedWatermark) {
+                        // 如果依賴了浮水印，進入書寫練習模式
+                        startWritingTask();
+                    } else {
+                        // 沒有依賴浮水印，直接過橋
+                        finishLevel();
+                    }
+                }, 300);
+            }
+        }
+
+        // 新增：開始書寫練習
+        function startWritingTask() {
+            writingTimesLeft = 3;
+            document.getElementById('writing-screen').classList.remove('hidden');
+            document.getElementById('writing-target-word').innerText = wordList[currentLevel].eng;
+            document.getElementById('writing-target-times').innerText = writingTimesLeft;
+            document.getElementById('writing-error-msg').innerText = '';
+            
+            // 延遲一下確保畫布尺寸與 DOM 渲染正確後再初始化
+            setTimeout(() => {
+                if (!canvas) initCanvas();
+                clearCanvas();
+            }, 100);
+        }
+
+        // 新增：初始化畫布與觸控/滑鼠事件
+        function initCanvas() {
+            canvas = document.getElementById('writing-canvas');
+            ctx = canvas.getContext('2d');
+
+            // 滑鼠事件
+            canvas.addEventListener('mousedown', startPosition);
+            canvas.addEventListener('mouseup', endPosition);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseout', endPosition);
+
+            // 觸控事件 (防網頁捲動，支援平板/手機)
+            canvas.addEventListener('touchstart', startPosition, { passive: false });
+            canvas.addEventListener('touchend', endPosition);
+            canvas.addEventListener('touchmove', draw, { passive: false });
+        }
+
+        // 新增：取得正確的繪圖座標 (支援縮放與觸控)
+        function getCanvasPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            // 計算縮放比例 (防 CSS 縮放導致座標偏移)
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            if (e.touches && e.touches.length > 0) {
+                return {
+                    x: (e.touches[0].clientX - rect.left) * scaleX,
+                    y: (e.touches[0].clientY - rect.top) * scaleY
+                };
+            }
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+
+        function startPosition(e) {
+            e.preventDefault();
+            isDrawing = true;
+            hasDrawn = true; // 標記學生已經開始書寫
+            const pos = getCanvasPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        function endPosition() {
+            isDrawing = false;
+            ctx.closePath();
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const pos = getCanvasPos(e);
+            
+            // 畫筆設定 (深藍色粗筆，模擬麥克筆)
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#1e3a8a'; 
+            
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        // 新增：清除畫布並畫上便利貼底色
+        function clearCanvas() {
+            if (!ctx) return;
+            
+            // 畫上便利貼黃色底色 (移除引導橫線)
+            ctx.fillStyle = '#fefce8'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 重置畫筆狀態
+            ctx.beginPath();
+            hasDrawn = false;
+        }
+
+        // 修改：檢查書寫輸入 (改為檢查是否有在畫布上畫畫)
+        function checkWriting() {
+            const errorMsgEl = document.getElementById('writing-error-msg');
+
+            if (!hasDrawn) {
+                // 如果畫布是空的（學生沒寫字）
+                errorMsgEl.innerText = '請在畫布上動動筆，寫下詞語喔！';
+                errorMsgEl.className = 'text-red-500 font-bold mt-3 h-6';
+                const modal = document.getElementById('writing-modal-box');
+                modal.classList.add('animate-shake');
+                setTimeout(() => modal.classList.remove('animate-shake'), 400);
+                return;
+            }
+
+            // 成功寫完一次
+            writingTimesLeft--;
+            if (writingTimesLeft > 0) {
+                // 還沒寫完3次
+                document.getElementById('writing-target-times').innerText = writingTimesLeft;
+                clearCanvas(); // 自動換一張新紙
+                errorMsgEl.innerText = '太棒了！請繼續寫，還有 ' + writingTimesLeft + ' 次。';
+                errorMsgEl.className = 'text-green-500 font-bold mt-3 h-6';
+            } else {
+                // 寫完3次了
+                document.getElementById('writing-screen').classList.add('hidden');
+                finishLevel();
+            }
+        }
+
+        // 新增：過橋動畫與進入下一關
+        function finishLevel() {
+            showToast('太棒了！過橋囉！', 'success');
+            const boy = document.getElementById('boy');
+            boy.style.left = '350%'; // 走到右邊消失
+            
+            setTimeout(() => {
+                initLevel(currentLevel + 1);
+            }, 2500);
+        }
+
+        // 重新開始遊戲
+        function restartGame() {
+            document.getElementById('game-over-screen').classList.add('hidden');
+            wordList = shuffleArray(wordList); // 重新開始時，將題目順序打亂
+            initLevel(0);
+        }
+
+        // 遊戲啟動
+        window.onload = () => {
+            wordList = shuffleArray(wordList); // 第一次打開遊戲時，將題目順序打亂
+            initLevel(0);
+        };
+    </script>
+</body>
+</html>
+
