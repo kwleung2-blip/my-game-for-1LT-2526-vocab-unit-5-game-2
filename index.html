@@ -277,12 +277,17 @@
         let hasDrawn = false;
         let isCheckingWriting = false; // 新增：避免在語音播放期間重複點擊檢查或繪圖
         let audioPlayId = 0; // 新增：用於追蹤語音播放序列，避免連續點擊造成重疊
+        window.speechUtterances = []; // 新增：用於存放語音物件，防止瀏覽器過度清理(GC)導致聲音消失
 
         // 修改：播放單字發音的函數 (精確控制兩次發音中間的停頓長度)
         function playWordAudio() {
             if ('speechSynthesis' in window) {
                 const word = wordList[currentLevel].eng;
-                window.speechSynthesis.cancel(); 
+                
+                // 改為：只有在發音中才取消，避免頻繁 cancel() 導致瀏覽器語音引擎當機卡死
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.cancel(); 
+                }
                 
                 // 每次點擊都產生新的播放 ID，用來取消舊的排程
                 audioPlayId++;
@@ -296,6 +301,8 @@
                     const utterance1 = new SpeechSynthesisUtterance(word);
                     utterance1.lang = 'en-US';
                     utterance1.rate = 0.7;
+                    
+                    window.speechUtterances.push(utterance1); // 加入全域陣列，防止被瀏覽器當作垃圾回收
                     
                     let isNextTriggered = false;
                     
@@ -311,6 +318,7 @@
                             const utterance2 = new SpeechSynthesisUtterance(word);
                             utterance2.lang = 'en-US';
                             utterance2.rate = 0.7;
+                            window.speechUtterances.push(utterance2); // 加入全域陣列
                             window.speechSynthesis.speak(utterance2);
                         }, 800); 
                     };
@@ -793,7 +801,10 @@
             // 每次寫對都讀出拼寫與發音，讀完才換紙或重置關卡
             if ('speechSynthesis' in window) {
                 const word = wordList[currentLevel].eng;
-                window.speechSynthesis.cancel();
+                
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.cancel();
+                }
                 
                 setTimeout(() => {
                     const subWords = word.split(' ');
@@ -813,6 +824,7 @@
                     const utterance = new SpeechSynthesisUtterance(spelledText);
                     utterance.lang = 'en-US';
                     utterance.rate = 0.7; // 保持 0.7 的清晰語速
+                    window.speechUtterances.push(utterance); // 防回收
                     
                     let isActionTriggered = false;
                     const triggerAction = () => {
@@ -851,7 +863,10 @@
             // 播放拼讀語音，並在播放完畢後才進入下一關
             if ('speechSynthesis' in window) {
                 const word = wordList[currentLevel].eng;
-                window.speechSynthesis.cancel();
+                
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.cancel();
+                }
                 
                 setTimeout(() => {
                     const subWords = word.split(' ');
@@ -875,6 +890,7 @@
                     const utterance = new SpeechSynthesisUtterance(spelledText);
                     utterance.lang = 'en-US';
                     utterance.rate = 0.7; // 保持 0.7 的清晰語速
+                    window.speechUtterances.push(utterance); // 防回收
                     
                     let isNextLevelTriggered = false;
                     const triggerNextLevel = () => {
@@ -960,7 +976,9 @@
         function onStartButtonClick() {
             // 在使用者第一次點擊時，初始化語音系統 (解決 iOS/Safari 等行動裝置必須由使用者實體觸發音訊的安全限制)
             if ('speechSynthesis' in window) {
-                const unlockUtterance = new SpeechSynthesisUtterance(' '); // 加一個空白字元，確保瀏覽器成功喚醒
+                const unlockUtterance = new SpeechSynthesisUtterance('unlock'); 
+                unlockUtterance.volume = 0; // 改用有實際字元的單字並靜音，更能確保瀏覽器成功喚醒
+                window.speechUtterances.push(unlockUtterance);
                 window.speechSynthesis.speak(unlockUtterance);
             }
             
