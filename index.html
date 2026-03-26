@@ -37,9 +37,37 @@
         .animate-firework {
             animation: firework-pop 2s infinite ease-out;
         }
+        /* 新增：倒數動畫 */
+        @keyframes countdown-pulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            30% { transform: scale(1.2); opacity: 1; }
+            70% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
     </style>
 </head>
 <body class="bg-sky-200 overflow-hidden font-sans select-none m-0 p-0 h-screen flex flex-col">
+
+    <!-- 新增：開始遊戲首頁 -->
+    <div id="start-screen" class="absolute inset-0 bg-sky-300 z-[60] flex flex-col items-center justify-center p-4 transition-opacity duration-500">
+        <div class="bg-white/95 p-10 rounded-3xl shadow-2xl text-center max-w-lg w-full border-4 border-sky-400">
+            <div class="text-7xl mb-6 animate-bounce">🌉</div>
+            <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-sky-600 mb-4">
+                過橋拼字遊戲
+            </h1>
+            <p class="text-xl text-gray-600 mb-8 font-bold">幫助小男孩拼對單字，安全走到老師身邊吧！</p>
+            <button onclick="onStartButtonClick()" class="px-10 py-5 bg-gradient-to-r from-green-400 to-green-600 text-white rounded-full font-black text-3xl hover:scale-105 active:scale-95 transition-all shadow-[0_10px_20px_rgba(34,197,94,0.3)] border-2 border-white">
+                開始遊戲 ▶️
+            </button>
+        </div>
+    </div>
+
+    <!-- 新增：倒數畫面 -->
+    <div id="countdown-screen" class="hidden absolute inset-0 bg-black/40 z-[70] flex flex-col items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div id="countdown-number" class="text-[15rem] font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]">
+            3
+        </div>
+    </div>
 
     <!-- 遊戲結束畫面 (已更新：煙火慶祝與跳躍動畫) -->
     <div id="game-over-screen" class="hidden absolute inset-0 bg-slate-900/90 z-50 flex flex-col items-center justify-center p-4 overflow-hidden backdrop-blur-sm">
@@ -117,11 +145,13 @@
             </div>
             
             <div class="flex gap-3">
-                <button onclick="clearCanvas()" class="w-1/3 py-4 bg-gray-400 text-white rounded-xl font-bold text-2xl hover:bg-gray-500 transition-colors shadow-md active:translate-y-1">
-                    清除重寫
+                <button onclick="clearCanvas()" class="w-1/3 py-3 flex flex-col items-center justify-center bg-gray-400 text-white rounded-xl font-bold hover:bg-gray-500 transition-colors shadow-md active:translate-y-1 leading-tight">
+                    <span class="text-2xl md:text-3xl">Clear</span>
+                    <span class="text-xs md:text-sm font-normal opacity-90 mt-1">清除重寫</span>
                 </button>
-                <button onclick="checkWriting()" class="w-2/3 py-4 bg-amber-500 text-white rounded-xl font-bold text-2xl hover:bg-amber-600 transition-colors shadow-md active:translate-y-1">
-                    寫好了！
+                <button onclick="checkWriting()" class="w-2/3 py-3 flex flex-col items-center justify-center bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-md active:translate-y-1 leading-tight">
+                    <span class="text-2xl md:text-3xl">Done!</span>
+                    <span class="text-xs md:text-sm font-normal opacity-90 mt-1">寫好了！</span>
                 </button>
             </div>
             <div id="writing-error-msg" class="text-red-500 font-bold mt-3 text-lg h-8"></div>
@@ -246,19 +276,56 @@
         let isDrawing = false;
         let hasDrawn = false;
         let isCheckingWriting = false; // 新增：避免在語音播放期間重複點擊檢查或繪圖
+        let audioPlayId = 0; // 新增：用於追蹤語音播放序列，避免連續點擊造成重疊
 
-        // 新增：播放單字發音的函數
+        // 修改：播放單字發音的函數 (精確控制兩次發音中間的停頓長度)
         function playWordAudio() {
             if ('speechSynthesis' in window) {
                 const word = wordList[currentLevel].eng;
-                // 先取消目前正在播放的語音（避免連續點擊時聲音重疊）
                 window.speechSynthesis.cancel(); 
                 
-                const utterance = new SpeechSynthesisUtterance(word);
-                utterance.lang = 'en-US'; // 設定為美式英文
-                utterance.rate = 0.7;     // 將語速調整為 0.7，取得清晰與自然的平衡
+                // 每次點擊都產生新的播放 ID，用來取消舊的排程
+                audioPlayId++;
+                const currentPlayId = audioPlayId;
                 
-                window.speechSynthesis.speak(utterance);
+                // 150ms 緩衝：避免第一個音節被切斷
+                setTimeout(() => {
+                    if (currentPlayId !== audioPlayId) return;
+
+                    // 建立第一次發音
+                    const utterance1 = new SpeechSynthesisUtterance(word);
+                    utterance1.lang = 'en-US';
+                    utterance1.rate = 0.7;
+                    
+                    let isNextTriggered = false;
+                    
+                    // 第一次發音結束後，觸發第二次發音的倒數
+                    const playSecondTime = () => {
+                        if (isNextTriggered || currentPlayId !== audioPlayId) return;
+                        isNextTriggered = true;
+                        
+                        // 🌟 在這裡設定兩次發音中間的停頓時間 (800 毫秒 = 0.8 秒)
+                        // 您可以隨時修改這個數值，例如改成 1000 就是停頓 1 秒
+                        setTimeout(() => {
+                            if (currentPlayId !== audioPlayId) return;
+                            const utterance2 = new SpeechSynthesisUtterance(word);
+                            utterance2.lang = 'en-US';
+                            utterance2.rate = 0.7;
+                            window.speechSynthesis.speak(utterance2);
+                        }, 800); 
+                    };
+
+                    // 綁定結束事件
+                    utterance1.onend = playSecondTime;
+                    utterance1.onerror = playSecondTime;
+                    
+                    // 開始播放第一次
+                    window.speechSynthesis.speak(utterance1);
+                    
+                    // 防呆機制：避免部分瀏覽器沒觸發 onend 導致卡住 (2.5秒後強制觸發第二次)
+                    setTimeout(playSecondTime, 2500);
+                    
+                }, 150);
             } else {
                 showToast('您的瀏覽器不支援語音功能喔！', 'error');
             }
@@ -728,46 +795,47 @@
                 const word = wordList[currentLevel].eng;
                 window.speechSynthesis.cancel();
                 
-                const subWords = word.split(' ');
-                let spelledText = '';
-                
-                if (subWords.length > 1) {
-                    const parts = subWords.map(sw => {
-                        const letters = sw.toUpperCase().split('').join(' ');
-                        return `${letters}, ${sw}`;
-                    });
-                    spelledText = `${parts.join('. ')}. ${word}`;
-                } else {
-                    const letters = word.toUpperCase().split('').join(' ');
-                    spelledText = `${letters}, ${word}`;
-                }
-                
-                const utterance = new SpeechSynthesisUtterance(spelledText);
-                utterance.lang = 'en-US';
-                utterance.rate = 0.7; // 保持 0.7 的清晰語速
-                
-                let isActionTriggered = false;
-                const triggerAction = () => {
-                    if (!isActionTriggered) {
-                        isActionTriggered = true;
-                        handleNextStep();
+                setTimeout(() => {
+                    const subWords = word.split(' ');
+                    let spelledText = '';
+                    
+                    if (subWords.length > 1) {
+                        const parts = subWords.map(sw => {
+                            const letters = sw.toUpperCase().split('').join(' ');
+                            return `${letters}, ${sw}`;
+                        });
+                        spelledText = `${parts.join('. ')}. ${word}`;
+                    } else {
+                        const letters = word.toUpperCase().split('').join(' ');
+                        spelledText = `${letters}, ${word}`;
                     }
-                };
+                    
+                    const utterance = new SpeechSynthesisUtterance(spelledText);
+                    utterance.lang = 'en-US';
+                    utterance.rate = 0.7; // 保持 0.7 的清晰語速
+                    
+                    let isActionTriggered = false;
+                    const triggerAction = () => {
+                        if (!isActionTriggered) {
+                            isActionTriggered = true;
+                            handleNextStep();
+                        }
+                    };
 
-                // 語音播放完畢(或發生錯誤)時，才執行下一步
-                utterance.onend = triggerAction;
-                utterance.onerror = triggerAction;
-                
-                window.speechSynthesis.speak(utterance);
-                
-                // 播放語音期間給予視覺提示，讓學生專心聽
-                errorMsgEl.innerText = '寫得很棒！請聽老師唸...';
-                errorMsgEl.className = 'text-blue-500 font-bold mt-3 h-6';
+                    // 語音播放完畢(或發生錯誤)時，才執行下一步
+                    utterance.onend = triggerAction;
+                    utterance.onerror = triggerAction;
+                    
+                    window.speechSynthesis.speak(utterance);
+                    
+                    // 播放語音期間給予視覺提示，讓學生專心聽
+                    errorMsgEl.innerText = '寫得很棒！請聽老師唸...';
+                    errorMsgEl.className = 'text-blue-500 font-bold mt-3 h-6';
 
-                // 防呆機制：確保語音系統若卡住，一定時間後仍會進入下一步
-                const fallbackTime = (word.replace(/ /g, '').length * 800) + (subWords.length * 1500) + 3000;
-                setTimeout(triggerAction, fallbackTime);
-                
+                    // 防呆機制：確保語音系統若卡住，一定時間後仍會進入下一步
+                    const fallbackTime = (word.replace(/ /g, '').length * 800) + (subWords.length * 1500) + 3000;
+                    setTimeout(triggerAction, fallbackTime);
+                }, 150);
             } else {
                 // 如果不支援語音功能，直接進入下一步
                 handleNextStep();
@@ -785,46 +853,47 @@
                 const word = wordList[currentLevel].eng;
                 window.speechSynthesis.cancel();
                 
-                const subWords = word.split(' ');
-                let spelledText = '';
-                
-                if (subWords.length > 1) {
-                    // 如果是片語 (包含多個單字，例如 "red packets")
-                    // 將每個單字獨立拆解拼讀，例如: "R E D, red." 和 "P A C K E T S, packets."
-                    const parts = subWords.map(sw => {
-                        const letters = sw.toUpperCase().split('').join(' ');
-                        return `${letters}, ${sw}`;
-                    });
-                    // 用句號 (.) 來製造大約 0.3~0.5 秒的自然停頓，最後再唸出完整詞語
-                    spelledText = `${parts.join('. ')}. ${word}`;
-                } else {
-                    // 如果是單一單字 (例如 "joyful")
-                    const letters = word.toUpperCase().split('').join(' ');
-                    spelledText = `${letters}, ${word}`;
-                }
-                
-                const utterance = new SpeechSynthesisUtterance(spelledText);
-                utterance.lang = 'en-US';
-                utterance.rate = 0.7; // 保持 0.7 的清晰語速
-                
-                let isNextLevelTriggered = false;
-                const triggerNextLevel = () => {
-                    if (!isNextLevelTriggered) {
-                        isNextLevelTriggered = true;
-                        initLevel(currentLevel + 1);
+                setTimeout(() => {
+                    const subWords = word.split(' ');
+                    let spelledText = '';
+                    
+                    if (subWords.length > 1) {
+                        // 如果是片語 (包含多個單字，例如 "red packets")
+                        // 將每個單字獨立拆解拼讀，例如: "R E D, red." 和 "P A C K E T S, packets."
+                        const parts = subWords.map(sw => {
+                            const letters = sw.toUpperCase().split('').join(' ');
+                            return `${letters}, ${sw}`;
+                        });
+                        // 用句號 (.) 來製造大約 0.3~0.5 秒的自然停頓，最後再唸出完整詞語
+                        spelledText = `${parts.join('. ')}. ${word}`;
+                    } else {
+                        // 如果是單一單字 (例如 "joyful")
+                        const letters = word.toUpperCase().split('').join(' ');
+                        spelledText = `${letters}, ${word}`;
                     }
-                };
+                    
+                    const utterance = new SpeechSynthesisUtterance(spelledText);
+                    utterance.lang = 'en-US';
+                    utterance.rate = 0.7; // 保持 0.7 的清晰語速
+                    
+                    let isNextLevelTriggered = false;
+                    const triggerNextLevel = () => {
+                        if (!isNextLevelTriggered) {
+                            isNextLevelTriggered = true;
+                            initLevel(currentLevel + 1);
+                        }
+                    };
 
-                // 語音播放完畢(或發生錯誤)時，才切換到下一關
-                utterance.onend = triggerNextLevel;
-                utterance.onerror = triggerNextLevel;
-                
-                window.speechSynthesis.speak(utterance);
-                
-                // 防呆機制：因為加入了各別單字發音與完整發音，緩衝時間需要重新計算
-                const fallbackTime = (word.replace(/ /g, '').length * 800) + (subWords.length * 1500) + 3000;
-                setTimeout(triggerNextLevel, fallbackTime);
-                
+                    // 語音播放完畢(或發生錯誤)時，才切換到下一關
+                    utterance.onend = triggerNextLevel;
+                    utterance.onerror = triggerNextLevel;
+                    
+                    window.speechSynthesis.speak(utterance);
+                    
+                    // 防呆機制：因為加入了各別單字發音與完整發音，緩衝時間需要重新計算
+                    const fallbackTime = (word.replace(/ /g, '').length * 800) + (subWords.length * 1500) + 3000;
+                    setTimeout(triggerNextLevel, fallbackTime);
+                }, 150);
             } else {
                 // 如果瀏覽器完全不支援語音功能，維持原本的定時過關
                 setTimeout(() => {
@@ -857,6 +926,49 @@
             document.getElementById('game-over-screen').classList.remove('hidden');
         }
 
+        // 新增：倒數計時邏輯
+        function startCountdown(callback) {
+            document.getElementById('start-screen').classList.add('hidden');
+            const countdownScreen = document.getElementById('countdown-screen');
+            const countdownNumber = document.getElementById('countdown-number');
+            
+            countdownScreen.classList.remove('hidden');
+            let count = 3;
+            countdownNumber.innerText = count;
+            
+            // 重置動畫，確保每次數字改變都會重新播放跳動效果
+            countdownNumber.style.animation = 'none';
+            void countdownNumber.offsetWidth; 
+            countdownNumber.style.animation = 'countdown-pulse 1s ease-in-out';
+
+            const interval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownNumber.innerText = count;
+                    countdownNumber.style.animation = 'none';
+                    void countdownNumber.offsetWidth; 
+                    countdownNumber.style.animation = 'countdown-pulse 1s ease-in-out';
+                } else {
+                    clearInterval(interval);
+                    countdownScreen.classList.add('hidden');
+                    if (callback) callback(); // 倒數結束，執行回呼函數 (開始關卡)
+                }
+            }, 1000);
+        }
+
+        // 新增：處理開始按鈕點擊
+        function onStartButtonClick() {
+            // 在使用者第一次點擊時，初始化語音系統 (解決 iOS/Safari 等行動裝置必須由使用者實體觸發音訊的安全限制)
+            if ('speechSynthesis' in window) {
+                const unlockUtterance = new SpeechSynthesisUtterance(' '); // 加一個空白字元，確保瀏覽器成功喚醒
+                window.speechSynthesis.speak(unlockUtterance);
+            }
+            
+            startCountdown(() => {
+                initLevel(0, false, 600);
+            });
+        }
+
         // 修改：重新開始遊戲 (全部重玩)
         function restartGame() {
             document.getElementById('game-over-screen').classList.add('hidden');
@@ -869,8 +981,10 @@
             isLevelScored = false;
             document.getElementById('review-words-list').classList.add('hidden'); // 隱藏列表
 
-            // 重新開始時，直接唸出單字 (延遲 600ms)
-            initLevel(0, false, 600);
+            // 修改：加入倒數動畫後再開始
+            startCountdown(() => {
+                initLevel(0, false, 600);
+            });
         }
 
         // 新增：只針對錯題進行溫習遊戲
@@ -886,15 +1000,16 @@
             isLevelScored = false;
             document.getElementById('review-words-list').classList.add('hidden');
 
-            // 重新開始時，直接唸出單字 (延遲 600ms)
-            initLevel(0, false, 600);
+            // 修改：加入倒數動畫後再開始
+            startCountdown(() => {
+                initLevel(0, false, 600);
+            });
         }
 
-        // 遊戲啟動
+        // 修改：遊戲啟動
         window.onload = () => {
             wordList = shuffleArray([...originalWordList]); // 第一次打開遊戲時，載入完整題庫並打亂
-            // 第一次開局，直接唸出單字 (延遲 600ms)
-            initLevel(0, false, 600);
+            // 已經將自動開始的 initLevel 移除，現在會停留在首頁等待玩家點擊「開始遊戲」
         };
     </script>
 </body>
