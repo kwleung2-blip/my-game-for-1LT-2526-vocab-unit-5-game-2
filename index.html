@@ -130,31 +130,31 @@
     </div>
 
     <!-- 書寫練習畫面 (預設隱藏) -->
-    <div id="writing-screen" class="hidden absolute inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
-        <!-- 將 max-w-lg 改為 max-w-3xl，讓視窗變得更寬敞 -->
-        <div id="writing-modal-box" class="bg-white p-8 md:p-10 rounded-2xl shadow-xl text-center max-w-3xl w-full">
-            <div class="text-5xl mb-4">✍️</div>
-            <h2 class="text-2xl font-bold text-amber-600 mb-2">需要多練習一下喔！</h2>
-            <p class="text-gray-700 mb-4">因為剛才有看提示，請在下方畫布<strong class="text-amber-600">順著灰色的字跡描寫</strong>出這個詞語 <span id="writing-target-times" class="font-bold text-red-500">3</span> 次來加深記憶：</p>
-            <div class="text-4xl font-bold text-blue-600 mb-6 tracking-widest" id="writing-target-word"></div>
+    <div id="writing-screen" class="hidden absolute inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+        <!-- 擴大彈窗的最大寬度、縮小邊距，並限制最大高度以適應手機螢幕 -->
+        <div id="writing-modal-box" class="bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-xl text-center max-w-4xl w-[95%] sm:w-full max-h-[98vh] overflow-y-auto">
+            <div class="text-4xl sm:text-5xl mb-2">✍️</div>
+            <h2 class="text-xl sm:text-2xl font-bold text-amber-600 mb-1">需要多練習一下喔！</h2>
+            <p class="text-sm sm:text-base text-gray-700 mb-2">因為剛才有看提示，請在下方畫布<strong class="text-amber-600">順著灰色的字跡描寫</strong>出這個詞語 <span id="writing-target-times" class="font-bold text-red-500">3</span> 次來加深記憶：</p>
+            <div class="text-3xl sm:text-4xl font-bold text-blue-600 mb-4 tracking-widest" id="writing-target-word"></div>
             
             <!-- 手寫畫布區域 (像便利貼/筆記本) -->
-            <div class="w-full flex justify-center mb-6 bg-yellow-50 border-4 border-yellow-200 rounded-xl relative overflow-hidden shadow-inner">
-                <!-- 將畫布的解析度放大為 width="700" height="250" -->
-                <canvas id="writing-canvas" width="700" height="250" class="cursor-crosshair touch-none w-full h-auto rounded-xl"></canvas>
+            <div class="w-full flex justify-center mb-4 bg-yellow-50 border-4 border-yellow-200 rounded-xl relative shadow-inner">
+                <!-- 將畫布的解析度與比例調整為 width="800" height="400" (2:1)，讓垂直書寫空間大幅增加 -->
+                <canvas id="writing-canvas" width="800" height="400" class="cursor-crosshair touch-none w-full h-auto rounded-xl"></canvas>
             </div>
             
             <div class="flex gap-3">
-                <button onclick="clearCanvas()" class="w-1/3 py-3 flex flex-col items-center justify-center bg-gray-400 text-white rounded-xl font-bold hover:bg-gray-500 transition-colors shadow-md active:translate-y-1 leading-tight">
-                    <span class="text-2xl md:text-3xl">Clear</span>
-                    <span class="text-xs md:text-sm font-normal opacity-90 mt-1">清除重寫</span>
+                <button onclick="clearCanvas()" class="w-1/3 py-2 sm:py-3 flex flex-col items-center justify-center bg-gray-400 text-white rounded-xl font-bold hover:bg-gray-500 transition-colors shadow-md active:translate-y-1 leading-tight">
+                    <span class="text-xl sm:text-2xl md:text-3xl">Clear</span>
+                    <span class="text-[10px] sm:text-xs md:text-sm font-normal opacity-90 mt-1">清除重寫</span>
                 </button>
-                <button onclick="checkWriting()" class="w-2/3 py-3 flex flex-col items-center justify-center bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-md active:translate-y-1 leading-tight">
-                    <span class="text-2xl md:text-3xl">Done!</span>
-                    <span class="text-xs md:text-sm font-normal opacity-90 mt-1">寫好了！</span>
+                <button onclick="checkWriting()" class="w-2/3 py-2 sm:py-3 flex flex-col items-center justify-center bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-md active:translate-y-1 leading-tight">
+                    <span class="text-xl sm:text-2xl md:text-3xl">Done!</span>
+                    <span class="text-[10px] sm:text-xs md:text-sm font-normal opacity-90 mt-1">寫好了！</span>
                 </button>
             </div>
-            <div id="writing-error-msg" class="text-red-500 font-bold mt-3 text-lg h-8"></div>
+            <div id="writing-error-msg" class="text-red-500 font-bold mt-2 text-base sm:text-lg h-6 sm:h-8"></div>
         </div>
     </div>
 
@@ -661,8 +661,8 @@
             e.preventDefault();
             const pos = getCanvasPos(e);
             
-            // 畫筆設定 (深藍色粗筆，配合大畫布加粗到 14)
-            ctx.lineWidth = 14; 
+            // 畫筆設定 (配合放大的畫布，調粗至 12，讓覆蓋率更容易達標)
+            ctx.lineWidth = 12; 
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.strokeStyle = '#1e3a8a'; 
@@ -679,9 +679,9 @@
             ctx.fillStyle = '#fefce8'; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // 動態計算最大字體大小 (保證字體盡可能大，給予學生最大的視覺輔助)
+            // 動態計算最大字體大小 (配合放大的畫布高度，字體初始值調大)
             const word = wordList[currentLevel].eng;
-            let fontSize = 180; // 從超大字體開始往下嘗試
+            let fontSize = 280; // 從 180 增加到 280，極大化字體
             ctx.font = `bold ${fontSize}px "Comic Sans MS", "Chalkboard SE", sans-serif`;
             
             // 檢查字體寬度，如果超出畫布(預留兩側各40px空間)，就逐漸縮小字體直到剛好放得下
@@ -756,22 +756,22 @@
             const coverage = coveredPixels / targetPixels;       // 單字覆蓋率 (有沒有把字寫完)
             const accuracy = coveredPixels / drawingPixels;      // 畫筆準確率 (防亂塗滿整個畫布)
 
-            // --- 嚴格驗證機制 ---
+            // --- 寬鬆版驗證機制 ---
 
-            // 1. 覆蓋率要求設為 53%：確保學生有描寫到字體的大部分
-            if (coverage < 0.53) {
+            // 1. 覆蓋率要求降為 40%：學生只要描寫到大約四成的筆畫即可過關
+            if (coverage < 0.40) {
                 showError('好像沒有寫完整喔！請順著灰色的字跡把每個字母寫完。');
                 return;
             }
 
-            // 2. 墨水總量限制：如果亂畫的總面積超過字體面積的 1.75 倍，判定為亂塗
-            if (drawingPixels > targetPixels * 1.75) {
+            // 2. 墨水總量限制放寬：允許亂畫的面積提升到字體面積的 2.5 倍
+            if (drawingPixels > targetPixels * 2.5) {
                 showError('畫了太多無關的線條囉！請清除後，只沿著字跡描寫！');
                 return;
             }
 
-            // 3. 準確率要求設為 45%：確保畫筆有接近一半是落在灰色字跡上的
-            if (accuracy < 0.45) {
+            // 3. 準確率要求降為 30%：允許學生手抖、寫歪或超出字跡邊界
+            if (accuracy < 0.30) {
                 showError('哎呀偏離字跡太多囉！請清除後，認真沿著字跡描寫！');
                 return;
             }
